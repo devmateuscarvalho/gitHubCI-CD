@@ -54,16 +54,23 @@ jobs:
         run: |
           docker build --build-arg NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY --build-arg SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE -t api -f api/Dockerfile .
 
-          docker tag api:latest ${{ secrets.AWS_ECR_REGISTRY }}/backend-api:${{ github.sha }}
-          docker tag api:latest ${{ secrets.AWS_ECR_REGISTRY }}/backend-api:latest
+          docker tag api:latest 857920359034.dkr.ecr.us-east-1.amazonaws.com/backend-api:${{ github.sha }}
+          docker tag api:latest 857920359034.dkr.ecr.us-east-1.amazonaws.com/backend-api:latest
 
-          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_REGISTRY }}
-          docker push ${{ secrets.AWS_ECR_REGISTRY }}/backend-api:${{ github.sha }}
-          docker push ${{ secrets.AWS_ECR_REGISTRY }}/backend-api:latest
+      - name: Push Docker Images to ECR
+        env:
+          AWS_ECR_REGISTRY: 857920359034.dkr.ecr.us-east-1.amazonaws.com
+          AWS_REGION: us-east-1
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ECR_REGISTRY
+          docker push $AWS_ECR_REGISTRY/backend-api:${{ github.sha }}
+          docker push $AWS_ECR_REGISTRY/backend-api:latest
 
       - name: Deploy to ECS
         env:
           CLUSTER_NAME: backend-api
           SERVICE_NAME: api
           TASK_DEFINITION: tasks/task-api.json
+          AWS_REGION: us-east-1
         run: |
+          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
