@@ -23,21 +23,27 @@ jobs:
         run: mvn test
 
       - name: Maven Package
-        run: mvn -B -Dmaven.test.skip=true clean package
+        run: mvn -B -f path/to/your/application/module/pom.xml -Dmaven.test.skip=true clean package
 
       - name: Archive Production Artifact
         uses: actions/upload-artifact@v2
         with:
           name: api-artifact
-          path: api/target/**/*.jar
+          path: path/to/your/application/module/target/**/*.jar
           retention-days: 1  # Opcional: define por quantos dias o artefato deve ser retido
 
       - name: Build Docker Images
-        env:
-          SPRING_PROFILES_ACTIVE: default  # ou qualquer perfil que você queira usar
         run: |
-          docker build --build-arg SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE \
-                       -t api -f api/Dockerfile .
+          # Verifique se o arquivo JAR foi realmente criado no diretório esperado
+          if [ -f path/to/your/application/module/target/*.jar ]; then
+            echo "Arquivo JAR encontrado, iniciando build do Docker..."
+          else
+            echo "Erro: Arquivo JAR não encontrado!"
+            exit 1
+          fi
+          
+          docker build --build-arg SPRING_PROFILES_ACTIVE=default \
+                       -t api -f path/to/your/application/module/Dockerfile path/to/your/application/module
           
           docker tag api:latest ${{ secrets.AWS_ECR_REGISTRY }}/api:latest
           docker push ${{ secrets.AWS_ECR_REGISTRY }}/api:latest
