@@ -18,27 +18,8 @@ steps:
       script:
         - mvn -B -Pprod -DprofileIdEnabled=true -Dmaven.test.skip=true clean package
       artifacts:
-        - login/target/**.jar
-        - login/newrelic/**
         - api/target/**.jar
         - api/newrelic/**
-        - customer/target/**.jar
-        - customer/newrelic/**
-        - device/target/**.jar
-        - device/newrelic/**
-        - processor/target/**.jar
-        - processor/newrelic/**
-        - report/target/**.jar
-        - report/newrelic/**
-        - email-sender/target/**.jar
-        - email-sender/newrelic/**
-        - webhook/target/**.jar
-        - webhook/newrelic/**
-        - websocket/target/**.jar
-        - websocket/newrelic/**
-        - remote-printer/target/**.jar
-        - remote-printer/nsis/installer/**.exe
-        - remote-printer/nsis/updater/**.exe
 
   - step: &build-docker
       deployment: production
@@ -59,7 +40,7 @@ steps:
 
 pipelines:
   branches:
-    master:
+    main:
       - parallel:
           - step: *tests
           - step: *package
