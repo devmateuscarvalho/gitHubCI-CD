@@ -1,50 +1,63 @@
-image:
-  name: maven:3.8.3-openjdk-21
+name: CI/CD Pipeline
 
-definitions:
-  caches:
-    sonar: ~/.sonar
+on:
+  push:
+    branches:
+      - main  # Executa este pipeline apenas quando houver push para o branch main
 
-steps:
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-  - step: &tests
-      name: Maven Tests
-      caches:
-        - maven
-      script:
-        - mvn test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-  - step: &package
-      name: Maven Package
-      image: opennms/build-env:21.0.3.0.7-3.8.7-b9875
-      caches:
-        - maven
-      script:
-        - mvn -B -Pprod -DprofileIdEnabled=true -Dmaven.test.skip=true clean package
-      artifacts:
-        - api/target/**.jar
-        - api/newrelic/**
+      - name: Cache Maven Packages
+        uses: actions/cache@v2
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
 
-  - step: &build-docker
-      deployment: production
-      name: Build Docker Images
-      services:
-        - docker
-      script:
-        - docker build --build-arg NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY --build-arg SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE -t api -f api/Dockerfile .
-        - pipe: atlassian/aws-ecr-push-image:1.6.2
-          variables:
-            IMAGE_NAME: backend-api
-            TAGS: '${BITBUCKET_TAG} latest'
-        - pipe: atlassian/aws-ecs-deploy:1.6.2
-          variables:
-            CLUSTER_NAME: backend-api
-            SERVICE_NAME: api
-            TASK_DEFINITION: tasks/task-api.json
-pipelines:
-  branches:
-    master:
-      - parallel:
-          - step: *tests
-          - step: *package
-      - step: *build-docker
+      - name: Set up JDK 21
+        uses: actions/setup-java@v2
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Maven Tests
+        run: mvn test
+
+      - name: Maven Package
+        run: mvn -B -Pprod -DprofileIdEnabled=true -Dmaven.test.skip=true clean package
+
+      - name: Archive Production Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: api-artifact
+          path: api/target/**/*.jar
+          retention-days: 1  # Opcional: define por quantos dias o artefato deve ser retido
+
+      - name: Build Docker Images
+        env:
+          SPRING_PROFILES_ACTIVE: prod  # Defina o perfil de Spring correto aqui
+          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}  # Defina esta variável no GitHub Secrets
+        run: |
+          docker build --build-arg NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY --build-arg SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE -t api -f api/Dockerfile .
+
+          docker tag api:latest ${{ secrets.AWS_ECR_REGISTRY }}/backend-api:${{ github.sha }}
+          docker tag api:latest ${{ secrets.AWS_ECR_REGISTRY }}/backend-api:latest
+
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_REGISTRY }}
+          docker push ${{ secrets.AWS_ECR_REGISTRY }}/backend-api:${{ github.sha }}
+          docker push ${{ secrets.AWS_ECR_REGISTRY }}/backend-api:latest
+
+      - name: Deploy to ECS
+        env:
+          CLUSTER_NAME: backend-api
+          SERVICE_NAME: api
+          TASK_DEFINITION: tasks/task-api.json
+        run: |
+          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
