@@ -51,13 +51,18 @@ jobs:
         env:
           SPRING_PROFILES_ACTIVE: prod  # Defina o perfil de Spring correto aqui
           NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}  # Defina esta variável no GitHub Secrets
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: us-east-1  # Defina a região correta aqui
+          AWS_ECR_REGISTRY: ${{ secrets.AWS_ECR_REGISTRY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           docker build --build-arg NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY --build-arg SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE -t api -f api/Dockerfile .
 
-          AWS_ECR_REGISTRY="857920359034.dkr.ecr.us-east-1.amazonaws.com/backend-api"
-
+          # Configurar autenticação Docker com ECR usando AWS CLI v2
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ECR_REGISTRY
 
+          # Taguear e enviar imagem Docker para o ECR
           docker tag api:latest $AWS_ECR_REGISTRY/backend-api:latest
           docker push $AWS_ECR_REGISTRY/backend-api:latest
 
@@ -66,6 +71,5 @@ jobs:
           CLUSTER_NAME: backend-api
           SERVICE_NAME: api
           TASK_DEFINITION: tasks/task-api.json
-          AWS_REGION: us-east-1
         run: |
           aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
