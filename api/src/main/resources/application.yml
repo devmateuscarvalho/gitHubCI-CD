@@ -1,0 +1,40 @@
+server:
+  port: 8080
+  error:
+    include-message: ALWAYS
+    include-binding-errors: ALWAYS
+    include-stacktrace: NEVER
+    include-exception: false
+
+security:
+  jwt:
+    secret: MpMb7GWJT0HRWaoZaCjzG4FsyCg8Yf8p90GtVBV9WYIibcbxUBcxoe1OcejAQYSDcfKKVELxtZ6IDz97UfrhFv4eTu0VC0IDnou6Uw3dVu5NXe8hsNNteP4YeDzBnldx
+
+springdoc:
+  api-docs:
+    path: /api/docs
+  swagger-ui:
+    enabled: false
+
+spring:
+  application:
+    name: api
+  profiles:
+    active: dev
+  devtools:
+    livereload:
+      port: 35730
+  main:
+    allow-circular-references: true
+  jackson:
+    default-property-inclusion: NON_NULL
+    serialization:
+      write-dates-as-timestamps: false
+  datasource:
+      url: jdbc:h2:mem:testdb
+      driver-class-name: org.h2.Driver
+      username: sa
+      password: password
+  h2:
+       console:
+        enabled: true
