@@ -1,23 +1,66 @@
-name: Hello World CI
+image:
+  name: maven:3.8.3-openjdk-21
 
-on: [push]
+steps:
 
-jobs:
-  say-hello:
-    runs-on: ubuntu-latest
+  - step: &tests
+      name: Maven Tests
+      caches:
+        - maven
+      script:
+        - mvn test
 
-    steps:
-      - name: Say Hello
-        run: echo "Hello, World!"
+  - step: &package
+      name: Maven Package
+      image: opennms/build-env:21.0.3.0.7-3.8.7-b9875
+      caches:
+        - maven
+      script:
+        - mvn -B -Pprod -DprofileIdEnabled=true -Dmaven.test.skip=true clean package
+      artifacts:
+        - login/target/**.jar
+        - login/newrelic/**
+        - api/target/**.jar
+        - api/newrelic/**
+        - customer/target/**.jar
+        - customer/newrelic/**
+        - device/target/**.jar
+        - device/newrelic/**
+        - processor/target/**.jar
+        - processor/newrelic/**
+        - report/target/**.jar
+        - report/newrelic/**
+        - email-sender/target/**.jar
+        - email-sender/newrelic/**
+        - webhook/target/**.jar
+        - webhook/newrelic/**
+        - websocket/target/**.jar
+        - websocket/newrelic/**
+        - remote-printer/target/**.jar
+        - remote-printer/nsis/installer/**.exe
+        - remote-printer/nsis/updater/**.exe
 
-      - name: Inspect Environment
-        run: |
-          echo "Running on:"
-          uname -a
-          lsb_release -a
-          echo "Node.js version:"
-          node -v
-          echo "Python version:"
-          python --version
-          echo "Docker version:"
-          docker --version
+  - step: &build-docker
+      deployment: production
+      name: Build Docker Images
+      services:
+        - docker
+      script:
+        - docker build --build-arg DATABASE_URL=$DATABASE_URL --build-arg DATABASE_USER=$DATABASE_USER --build-arg DATABASE_PASSWORD=$DATABASE_PASSWORD --build-arg REDIS_URL=$REDIS_URL --build-arg REDIS_PORT=$REDIS_PORT --build-arg KAFKA_SERVER=$KAFKA_SERVER --build-arg NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY --build-arg MONGO_DATABASE_URL=$MONGO_DATABASE_URL --build-arg MONGO_DATABASE_AUDIT_URL=$MONGO_DATABASE_AUDIT_URL --build-arg SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE -t api -f api/Dockerfile .
+        - pipe: atlassian/aws-ecr-push-image:1.6.2
+          variables:
+            IMAGE_NAME: api
+            TAGS: '${GITHUB_TAG} latest'
+        - pipe: atlassian/aws-ecs-deploy:1.6.2
+          variables:
+            CLUSTER_NAME: backend
+            SERVICE_NAME: api
+            TASK_DEFINITION: tasks/task-api.json
+
+pipelines:
+  branches:
+    master:
+      - parallel:
+          - step: *tests
+          - step: *package
+      - step: *build-docker
