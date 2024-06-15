@@ -1,47 +1,39 @@
-image:
-  name: maven:3.8.3-openjdk-21
-
-steps:
-
-  - step: &tests
-      name: Maven Tests
-      caches:
-        - maven
-      script:
-        - mvn test
-
-  - step: &package
-      name: Maven Package
-      image: opennms/build-env:21.0.3.0.7-3.8.7-b9875
-      caches:
-        - maven
-      script:
-        - mvn -B -Pprod -DprofileIdEnabled=true -Dmaven.test.skip=true clean package
-      artifacts:
-        - api/target/**.jar
-        - api/newrelic/**
-
-  - step: &build-docker
-      deployment: production
-      name: Build Docker Images
-      services:
-        - docker
-      script:
-        - docker build --build-arg DATABASE_URL=$DATABASE_URL --build-arg DATABASE_USER=$DATABASE_USER --build-arg DATABASE_PASSWORD=$DATABASE_PASSWORD --build-arg REDIS_URL=$REDIS_URL --build-arg REDIS_PORT=$REDIS_PORT --build-arg KAFKA_SERVER=$KAFKA_SERVER --build-arg NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY --build-arg MONGO_DATABASE_URL=$MONGO_DATABASE_URL --build-arg MONGO_DATABASE_AUDIT_URL=$MONGO_DATABASE_AUDIT_URL --build-arg SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE -t api -f api/Dockerfile .
-        - pipe: atlassian/aws-ecr-push-image:1.6.2
-          variables:
-            IMAGE_NAME: api
-            TAGS: '${GITHUB_TAG} latest'
-        - pipe: atlassian/aws-ecs-deploy:1.6.2
-          variables:
-            CLUSTER_NAME: backend
-            SERVICE_NAME: api
-            TASK_DEFINITION: tasks/task-api.json
+image: maven:3.8.3-openjdk-21
 
 pipelines:
   branches:
     main:
-      - parallel:
-          - step: *tests
-          - step: *package
-      - step: *build-docker
+      - step:
+          name: Maven Tests
+          caches:
+            - maven
+          script:
+            - mvn test
+
+      - step:
+          name: Maven Package
+          image: opennms/build-env:21.0.3.0.7-3.8.7-b9875
+          caches:
+            - maven
+          script:
+            - mvn -B -Pprod -DprofileIdEnabled=true -Dmaven.test.skip=true clean package
+          artifacts:
+            - api/target/**/*.jar
+            - api/newrelic/**
+
+      - step:
+          name: Build Docker Images
+          deployment: production
+          services:
+            - docker
+          script:
+            - docker build --build-arg DATABASE_URL=$DATABASE_URL --build-arg DATABASE_USER=$DATABASE_USER --build-arg DATABASE_PASSWORD=$DATABASE_PASSWORD --build-arg REDIS_URL=$REDIS_URL --build-arg REDIS_PORT=$REDIS_PORT --build-arg KAFKA_SERVER=$KAFKA_SERVER --build-arg NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY --build-arg MONGO_DATABASE_URL=$MONGO_DATABASE_URL --build-arg MONGO_DATABASE_AUDIT_URL=$MONGO_DATABASE_AUDIT_URL --build-arg SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE -t api -f api/Dockerfile .
+            - pipe: atlassian/aws-ecr-push-image:1.6.2
+              variables:
+                IMAGE_NAME: api
+                TAGS: '${BITBUCKET_TAG} latest'
+            - pipe: atlassian/aws-ecs-deploy:1.6.2
+              variables:
+                CLUSTER_NAME: backend
+                SERVICE_NAME: api
+                TASK_DEFINITION: tasks/task-api.json
