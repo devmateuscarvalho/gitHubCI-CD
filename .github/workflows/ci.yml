@@ -9,3 +9,15 @@ jobs:
     steps:
       - name: Say Hello
         run: echo "Hello, World!"
+
+      - name: Inspect Environment
+        run: |
+          echo "Running on:"
+          uname -a
+          lsb_release -a
+          echo "Node.js version:"
+          node -v
+          echo "Python version:"
+          python --version
+          echo "Docker version:"
+          docker --version
