@@ -33,6 +33,13 @@ jobs:
       - name: Maven Package
         run: mvn -B -Pprod -DprofileIdEnabled=true -Dmaven.test.skip=true clean package
 
+      - name: Verify Artifact Creation
+        run: |
+          if [ ! -f api/target/*.jar ]; then
+            echo "Erro: Arquivo JAR não encontrado em api/target/"
+            exit 1
+          fi
+
       - name: Archive Production Artifact
         uses: actions/upload-artifact@v2
         with:
@@ -60,4 +67,3 @@ jobs:
           SERVICE_NAME: api
           TASK_DEFINITION: tasks/task-api.json
         run: |
-          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
