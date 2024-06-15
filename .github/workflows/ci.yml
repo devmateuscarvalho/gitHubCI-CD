@@ -17,16 +17,13 @@ jobs:
         uses: actions/setup-java@v2
         with:
           java-version: '21'
-          distribution: 'adopt'
-          server-id: github
-          server-username: ${{ github.actor }}
-          server-password: ${{ github.token }}
+          distribution: 'temurin'
 
       - name: Maven Tests
         run: mvn test
 
       - name: Maven Package
-        run: mvn -B -Pprod -DprofileIdEnabled=true -Dmaven.test.skip=true clean package
+        run: mvn -B -Dmaven.test.skip=true clean package
 
       - name: Archive Production Artifact
         uses: actions/upload-artifact@v2
@@ -37,7 +34,7 @@ jobs:
 
       - name: Build Docker Images
         env:
-          SPRING_PROFILES_ACTIVE: dev
+          SPRING_PROFILES_ACTIVE: default  # ou qualquer perfil que você queira usar
         run: |
           docker build --build-arg SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE \
                        -t api -f api/Dockerfile .
@@ -53,3 +50,4 @@ jobs:
         run: |
           # Comandos para deploy no ECS usando AWS CLI ou outras ferramentas necessárias
           echo "Deploying to ECS cluster $CLUSTER_NAME, service $SERVICE_NAME"
+          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
