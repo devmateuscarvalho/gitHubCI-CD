@@ -23,10 +23,13 @@ jobs:
 
       - name: Maven Package
         run: mvn -B -Pprod -DprofileIdEnabled=true -Dmaven.test.skip=true clean package
-        artifacts:
-          paths:
-            - api/target/**/*.jar
-            - api/newrelic/**
+
+      - name: Archive Production Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: api-artifact
+          path: api/target/**/*.jar
+          retention-days: 1  # Opcional: define por quantos dias o artefato deve ser retido
 
       - name: Build Docker Images
         env:
