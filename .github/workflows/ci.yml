@@ -37,27 +37,9 @@ jobs:
 
       - name: Build Docker Images
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DATABASE_USER: ${{ secrets.DATABASE_USER }}
-          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
-          REDIS_URL: ${{ secrets.REDIS_URL }}
-          REDIS_PORT: ${{ secrets.REDIS_PORT }}
-          KAFKA_SERVER: ${{ secrets.KAFKA_SERVER }}
-          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
-          MONGO_DATABASE_URL: ${{ secrets.MONGO_DATABASE_URL }}
-          MONGO_DATABASE_AUDIT_URL: ${{ secrets.MONGO_DATABASE_AUDIT_URL }}
           SPRING_PROFILES_ACTIVE: dev
         run: |
-          docker build --build-arg DATABASE_URL=$DATABASE_URL \
-                       --build-arg DATABASE_USER=$DATABASE_USER \
-                       --build-arg DATABASE_PASSWORD=$DATABASE_PASSWORD \
-                       --build-arg REDIS_URL=$REDIS_URL \
-                       --build-arg REDIS_PORT=$REDIS_PORT \
-                       --build-arg KAFKA_SERVER=$KAFKA_SERVER \
-                       --build-arg NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY \
-                       --build-arg MONGO_DATABASE_URL=$MONGO_DATABASE_URL \
-                       --build-arg MONGO_DATABASE_AUDIT_URL=$MONGO_DATABASE_AUDIT_URL \
-                       --build-arg SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE \
+          docker build --build-arg SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE \
                        -t api -f api/Dockerfile .
           
           docker tag api:latest ${{ secrets.AWS_ECR_REGISTRY }}/api:latest
