@@ -1,59 +1,50 @@
-name: CI/CD Pipeline
+image:
+  name: maven:3.8.3-openjdk-21
 
-on:
-  push:
-    branches:
-      - main  # Executa este pipeline apenas quando houver push para o branch main
+definitions:
+  caches:
+    sonar: ~/.sonar
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+steps:
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+  - step: &tests
+      name: Maven Tests
+      caches:
+        - maven
+      script:
+        - mvn test
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v2
-        with:
-          java-version: '21'
-          distribution: 'temurin'
+  - step: &package
+      name: Maven Package
+      image: opennms/build-env:21.0.3.0.7-3.8.7-b9875
+      caches:
+        - maven
+      script:
+        - mvn -B -Pprod -DprofileIdEnabled=true -Dmaven.test.skip=true clean package
+      artifacts:
+        - api/target/**.jar
+        - api/newrelic/**
 
-      - name: Maven Tests
-        run: mvn test
-
-      - name: Maven Package
-        run: mvn -B -f path/to/your/application/module/pom.xml -Dmaven.test.skip=true clean package
-
-      - name: Archive Production Artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: api-artifact
-          path: path/to/your/application/module/target/**/*.jar
-          retention-days: 1  # Opcional: define por quantos dias o artefato deve ser retido
-
-      - name: Build Docker Images
-        run: |
-          # Verifique se o arquivo JAR foi realmente criado no diretório esperado
-          if [ -f path/to/your/application/module/target/*.jar ]; then
-            echo "Arquivo JAR encontrado, iniciando build do Docker..."
-          else
-            echo "Erro: Arquivo JAR não encontrado!"
-            exit 1
-          fi
-          
-          docker build --build-arg SPRING_PROFILES_ACTIVE=default \
-                       -t api -f path/to/your/application/module/Dockerfile path/to/your/application/module
-          
-          docker tag api:latest ${{ secrets.AWS_ECR_REGISTRY }}/api:latest
-          docker push ${{ secrets.AWS_ECR_REGISTRY }}/api:latest
-
-      - name: Deploy to ECS
-        env:
-          CLUSTER_NAME: backend
-          SERVICE_NAME: api
-          TASK_DEFINITION: tasks/task-api.json
-        run: |
-          # Comandos para deploy no ECS usando AWS CLI ou outras ferramentas necessárias
-          echo "Deploying to ECS cluster $CLUSTER_NAME, service $SERVICE_NAME"
-          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
+  - step: &build-docker
+      deployment: production
+      name: Build Docker Images
+      services:
+        - docker
+      script:
+        - docker build --build-arg NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY --build-arg SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE -t api -f api/Dockerfile .
+        - pipe: atlassian/aws-ecr-push-image:1.6.2
+          variables:
+            IMAGE_NAME: backend-api
+            TAGS: '${BITBUCKET_TAG} latest'
+        - pipe: atlassian/aws-ecs-deploy:1.6.2
+          variables:
+            CLUSTER_NAME: backend-api
+            SERVICE_NAME: api
+            TASK_DEFINITION: tasks/task-api.json
+pipelines:
+  branches:
+    master:
+      - parallel:
+          - step: *tests
+          - step: *package
+      - step: *build-docker
